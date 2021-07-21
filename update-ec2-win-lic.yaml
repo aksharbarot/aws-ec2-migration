@@ -1,0 +1,97 @@
+---
+- hosts: all
+  user: administrator
+  gather_facts: true
+  tasks:
+
+  tasks:
+
+        - name: Get Ansible network facts
+          debug:
+             msg: "{{ item.connection_name }}"
+          with_items:
+             - "{{ ansible_facts['interfaces'] }}"
+
+        - name: Get Ansible network facts
+          debug:
+             var: ansible_facts.distribution
+
+        - name: Activate windows
+          win_shell: route DELETE 169.254.169.251; route DELETE 169.254.169.250; route delete 169.254.169.254 ; route add 169.254.169.254 MASK 255.255.255.255 0.0.0.0; route -p ADD 169.254.169.251 MASK 255.255.255.255 0.0.0.0; route -p ADD 169.254.169.250 MASK 255.255.255.255 0.0.0.0
+          register: kmskey1
+          args:
+             chdir: C:\Windows\System32\
+
+
+        - debug:
+           var: kmsroute.stdout_lines | list
+
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /act-type 2
+          args:
+            chdir: C:\Windows\System32\
+          register: kmsact
+
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /upk
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /skms 169.254.169.250:1688
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey
+
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ipk CB7KF-BWN84-R7R2Y-793K2-8XDDG
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey2016DC
+          when: ansible_facts.distribution == "Microsoft Windows Server 2016 Datacenter"
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ipk WC2BQ-8NRM3-FDDYY-2BFGV-KHKQY
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey2016STD
+          when: ansible_facts.distribution == "Microsoft Windows Server 2016 Standard"
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ipk D2N9P-3P6X9-2R39C-7RTCD-MDVJX
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey2012STD
+          when: ansible_facts.distribution == "Microsoft Windows Server 2012 R2 Standard"
+
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ipk W3GGN-FT8W3-Y4M27-J84CP-Q3VJ9
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey2012DC
+          when: ansible_facts.distribution == "Microsoft Windows Server 2012 R2 Datacenter"
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ipk WMDGN-G9PQG-XVVXX-R3X43-63DFG
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey2019DC
+          when: ansible_facts.distribution == "Microsoft Windows Server 2019 Datacenter"
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ipk N69G4-B89J2-4G8F4-WWYCC-J464C
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskey2019STD
+          when: ansible_facts.distribution == "Microsoft Windows Server 2019 Standard"
+
+        - name: Activate windows
+          win_shell: cscript slmgr.vbs /ato
+          args:
+            chdir: C:\Windows\System32\
+          register: kmskeyato
