@@ -7,6 +7,7 @@ Ansible script will perform below mentioned steps to update AWS Windows EC2 lice
 
 
 **Script 1:** ec2-kms-migration.yaml (This will update ec2 instance from BYOL to Non-BYOL)
+AWS_PROFILE=TEST-KEY ansible-playbook ec2-kms-migration.yaml -vvv
 
 **Script 2:** update-ec2-win-lic.yaml (This will update windows license)
 FYI: Above script will override activation from Active directory based auth to KMS based auth. (update this in case not required)
