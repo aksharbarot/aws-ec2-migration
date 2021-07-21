@@ -1,0 +1,190 @@
+---
+- hosts: localhost
+  gather_facts: yes
+  connection: local
+  become: no
+
+  tasks:
+
+    - name: "Provison ec2 instance(s)"
+      ec2_instance_facts:
+        instance_ids:
+          - i-00000000000123
+      register: kmsvalue1
+
+    - debug:
+        var: kmsvalue1.instances[0].block_device_mappings
+
+    - debug:
+        var: kmsvalue1.instances[0].instance_type
+
+    - debug:
+        var: kmsvalue1.instances[0].private_ip_address
+
+    - name: Stopping Source VM
+      ec2_instance:
+       state: stopped
+       instance_ids:
+        - "{{ kmsvalue1.instances[0].instance_id }}"
+
+
+    - local_action: shell aws --profile test-key ec2 describe-instances --instance-ids '{{kmsvalue1.instances[0].instance_id}}' | jq -r '.[][]|.Instances[].NetworkInterfaces[].Groups[].GroupName' > /tmp/secgroups-"{{kmsvalue1.instances[0].instance_id}}" && sed ':b;$!{N;bb};s/\n/,/g' /tmp/secgroups-"{{kmsvalue1.instances[0].instance_id}}"
+      register: testaxar
+
+
+    - name: Detach Volume(s) from Source VM
+      ec2_vol:
+        id: "{{ item }}"
+        instance: None
+        region: us-east-1
+      with_items:
+        - "{{ kmsvalue1.instances[0].block_device_mappings[0].ebs.volume_id | default([]) }}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[1].ebs.volume_id | default([])}}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[2].ebs.volume_id | default([])}}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[3].ebs.volume_id | default([])}}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[4].ebs.volume_id | default([])}}"
+
+
+
+    - name: Display the availble timestamp format in Ansible
+      debug:
+        var: ansible_date_time
+
+    - name: "Provison ec2 instance(s) - MigrationDummy"
+      ec2_instance:
+        state: present
+        name: MigrationDummy-{{ ansible_date_time.iso8601_basic_short }}
+        region: us-east-1
+        key_name: "test"
+        instance_type: t2.nano
+        vpc_subnet_id: '{{kmsvalue1.instances[0].subnet_id}}'
+        image_id: ami-03091025e44ce2249
+        tags:
+          Name: MigrationDummy-{{ ansible_date_time.iso8601_basic_short }}
+          Application: "Ansible"
+      register: newdummy
+
+
+    - name: sleep for 60 seconds and continue with play
+      wait_for:
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Stopping MigrationDummy VM
+      ec2_instance:
+       state: stopped
+       instance_ids:
+        - "{{ newdummy.instances[0].instance_id }}"
+
+    - name: Detach Volume from MigrationDummy VM
+      ec2_vol:
+        id: "{{ item }}"
+        instance: None
+        region: us-east-1
+      with_items:
+        - "{{ newdummy.instances[0].block_device_mappings[0].ebs.volume_id }}"
+
+    - name: Attach Source VM Volume(s) to MigrationDummy VM
+      ec2_vol:
+       instance: "{{ newdummy.instances[0].instance_id }}"
+       id: "{{ item.name }}"
+       region: us-east-1
+       device_name: "{{ item.groups }}"
+       delete_on_termination: yes
+      ignore_errors: yes
+      with_items:
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[0].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[0].device_name | default([])}}' }
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[1].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[1].device_name | default([])}}' }
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[2].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[2].device_name | default([])}}' }
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[3].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[3].device_name | default([])}}' }
+
+    - name: Terminate Source VM (This will release Source IP)
+      ec2_instance:
+       state: absent
+       instance_ids:
+          - '{{ kmsvalue1.instances[0].instance_id }}'
+
+
+    - name: "Provison ec2 instance(s) - {{ kmsvalue1.instances[0].tags.Name }}"
+      ec2_instance:
+        state: present
+        name: '{{kmsvalue1.instances[0].tags.Name}}'
+        region: us-east-1
+        key_name: "test-key"
+        security_groups: '{{testaxar.stdout}}'
+        instance_type: '{{kmsvalue1.instances[0].instance_type}}'
+        vpc_subnet_id: '{{kmsvalue1.instances[0].subnet_id}}'
+        image_id: ami-03091025e44ce2249
+        network:
+          private_ip_address: "{{kmsvalue1.instances[0].private_ip_address}}"
+        tags:
+          Name: '{{kmsvalue1.instances[0].tags.Name}}'
+      register: newdummyphase
+
+    - name: sleep for 60 seconds and continue with play
+      wait_for:
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Stopping MigrationDummyPhase2 VM
+      ec2_instance:
+       state: stopped
+       instance_ids:
+        - "{{ newdummyphase.instances[0].instance_id }}"
+
+    - name: Detach Source VM Volume(s) from  MigrationDummy VM
+      ec2_vol:
+        id: "{{ item }}"
+        instance: None
+        region: us-east-1
+      with_items:
+        - "{{ kmsvalue1.instances[0].block_device_mappings[0].ebs.volume_id | default([]) }}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[1].ebs.volume_id | default([])}}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[2].ebs.volume_id | default([])}}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[3].ebs.volume_id | default([])}}"
+        - "{{ kmsvalue1.instances[0].block_device_mappings[4].ebs.volume_id | default([])}}"
+
+
+    - name: sleep for 30 seconds and continue with play
+      wait_for:
+        timeout: 30
+      delegate_to: localhost
+
+    - name: Detach Volume from MigrationDummyPhase2 VM
+      ec2_vol:
+        id: "{{ item }}"
+        instance: None
+        region: us-east-1
+      with_items:
+        - "{{ newdummyphase.instances[0].block_device_mappings[0].ebs.volume_id }}"
+
+    - name: Attach Source VM volume(s) to MigrationDummyPhase2 VM
+      ec2_vol:
+        instance: "{{ newdummyphase.instances[0].instance_id }}"
+        id: "{{ item.name }}"
+        region: us-east-1
+        device_name: "{{ item.groups }}"
+        delete_on_termination: yes
+      ignore_errors: yes
+      with_items:
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[0].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[0].device_name | default([])}}' }
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[1].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[1].device_name | default([])}}' }
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[2].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[2].device_name | default([])}}' }
+         - { name: '{{ kmsvalue1.instances[0].block_device_mappings[3].ebs.volume_id | default([])}}', groups: '{{ kmsvalue1.instances[0].block_device_mappings[3].device_name | default([])}}' }
+
+    - name: Terminate MigrationDummy VM
+      ec2_instance:
+       state: absent
+       instance_ids:
+          - '{{ newdummy.instances[0].instance_id }}'
+
+    - name: Start MigrationDummyPhase2 VM
+      ec2_instance:
+       state: started
+       instance_ids:
+        - "{{ newdummyphase.instances[0].instance_id }}"
+
+    - name: sleep for 120 seconds and continue with play
+      wait_for:
+        timeout: 120
+      delegate_to: localhost
