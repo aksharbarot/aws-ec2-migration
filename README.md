@@ -1,5 +1,5 @@
 # aws-ec2-migration-KMS
-aws-ec2-migration when windows license needs to be updated from BYOL to non-BYOL
+When windows license needs to be updated from **BYOL to non-BYOL** in AWS environment.
 
 Ansible script will perform below mentioned steps to update AWS Windows EC2 license. (It will retain same IP)
 
